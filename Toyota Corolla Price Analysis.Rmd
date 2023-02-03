@@ -1,0 +1,283 @@
+---
+title: "Toyota Corolla Price Analysis"
+output: github_document
+---
+
+###Abstract:
+	Prices of Toyota Corolla’s may change depending on many factors; this report measures the prices of Corolla’s set by a Toyota dealership in Europe.  The dataset included variables such as age of the purchaser of the car, odometer reading in kilometers (number of kilometers the vehicle has traveled), distinction in fuel type, horsepower, color of the vehicle, manual vs. automatic, displacement in cubic centimeters (CC), number of doors, and weight of the vehicle in kilograms.  The objective of this report is to find what variables drive the sales prices of the Corolla, and therefore help the European dealership to make correct pricing decisions in line with demand.  Through the analysis, prices differed between Fuel Types; specifically, petrol vs. diesel/CNG.  Through a regression analysis, it was found that the primary drivers of price for Corolla’s containing either diesel or CNG fuel (non-petrol) were Weight, Age, and KM.  The primary drivers or price for Corolla’s containing petrol fuel were Age, HP, and CC.  Combining both models pointed to sales prices as being driven by Weight, HP, Age, and KM. 
+	
+###Introduction:
+As per its introduction in 1966, the Toyota Corolla has been a staple vehicle among many families and individuals alike and even became known as the “World’s Best-Selling Car.”  Out of the approximate 230 million cars sold by Toyota over the last 80 years, 44.1 million were Corollas. Production sites span across 16 different plants in 13 different countries/regions.  Needless to say, the Corolla is a ubiquitous car among the industry.  The automotive industry is specialized in that it relies on mass production, which only certain companies can attain due to the high cost and investment of equipment, making Toyota one of the larger players. As any company looks to optimize revenues, control costs, and therefore increase income, Toyota seeks to analyze what affects sale prices of one of their best selling cars, the Corolla.  
+Through a data analysis, we were able to determine which variables significantly affect Price; the data set consisted of the following variables: 
+* Price – The sales price of the Toyota Corolla (in Euros)  
+* Age – Age of the purchaser  
+* KM – Odometer reading in kilometers  
+* FuelType – Fuel type (Diesel, Petrol or CNG)
+* HP – Horsepower
+* MetColor - Color
+* Automatic – Transmission (0 = Manual, 1 = Automatic)
+* CC – Displacement in cubic centimeters
+* Doors – Number of doors
+
+We created a scatterplot matrix to get an initial impression of the relationships between variables. The most interesting scatterplot matrix was created by coloring the variables by the Fuel Type variable. 
+
+```{r include=FALSE}
+df=read.csv("ToyotaCorollaDealership.csv")
+head(df)
+```
+
+```{r include=FALSE}
+df$FuelTypePetrol=ifelse(df$FuelType=="Petrol","yes","no")
+df$FuelType = NULL
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(GGally)
+df$Automatic <- as.factor(df$Automatic)
+ggpairs(df, columns=c(1,2,3,4,7,9), ggplot2::aes(colour=FuelTypePetrol), xlab = "Figure 1")
+```
+
+In Figure 1, turquoise represents petrol vehicles, and light red represents non-petrol (both diesel and CNG). Because there are major differences between correlation coefficients for different fuel types, we decided to separate the data by fuel type to analyze them distinctly. Given the small sample size of Corollas that use CNG as their fuel type, and the similarities in data between CNG-run and diesel-run cars compared to those which are run on petrol, we decided to combine CNG and diesel into one data set. As a result, we analyzed the data as petrol and as non-petrol vehicles separately. The correlation between price and weight is 0.581, but this number is significantly higher when the data is segmented into petrol and non-petrol with correlations of 0.605 and 0.86, respectively. The relationship can be seen in Figure 2. Additionally, the correlation between price and KM is -0.57, but the absolute value rises when segmented between petrol and non-petrol, to -0.618 and -0.739, respectively. The relationship can be seen in Figure 3.
+
+
+```{r echo=FALSE}
+ggplot(df, aes(KM, Price, colour=FuelTypePetrol))+geom_point()+geom_smooth(method="lm", se=F)+ labs(caption="Figure 2") + theme(plot.caption = element_text(hjust=0.5, size=rel(1.2)))
+ggplot(df, aes(Weight, Price, colour=FuelTypePetrol))+geom_point()+geom_smooth(method="lm", se=F) + labs(caption="Figure 3") + theme(plot.caption = element_text(hjust=0.5, size=rel(1.2)))
+```
+
+###Analysis:
+
+After gaining some understanding of the data, a multiple regression model can be fit. In this analysis, the regression model can be broken down into 2 separate models for petrol-fueled vehicles and non-petrol-fueled vehicles. The model for non-petrol vehicles can be obtained by predicting the price using weight, age, KM, and some interactions between the three.
+
+####Non-Petrol Model
+```{r include=FALSE}
+ndata = df[df$FuelTypePetrol == 'no', -10]
+pdata = df[df$FuelType == 'yes', -10]
+```
+
+```{r include=FALSE}
+nm1 = lm(Price~., data=ndata)
+summary(nm1)
+```
+
+```{r include=FALSE, results="hide"}
+#We then run the stepwise method to determine the optimal regression equation.
+null = lm(Price~1, data=ndata)
+full = lm(Price~., data=ndata)
+nm2 = step(null, scope = list(upper=full), direction = "both")
+summary(nm2)
+```
+
+```{r include=FALSE}
+#We then run the best subsets regression method to see if any regression equations provide a higher adjusted R^2.
+library(leaps)
+bsrn=regsubsets(Price~.,data=ndata)
+plot(bsrn,scale="adjr2")
+#Best subsets regression yielded a different set of independent variables, but with a very similar adjusted R^2 to the stepwise model. The best subsets model has more independent variables than the stepwise; as a result, the stepwise model is preferred.
+```
+
+
+```{r include=FALSE, results="hide"}
+#We then run the stepwise method with interactions to determine whether there are any preferable regression equations with interactions.
+null = lm(Price ~ 1, data = ndata)
+full = lm(Price ~ . + .^2, data=ndata)
+nm3 = step(null, scope = list(upper = full), direction = 'both')
+summary(nm3)
+```
+
+
+```{r echo=FALSE}
+nm_final = lm(formula = Price ~ Weight + Age + KM + 
+    Weight:Age + Weight:KM + Age:KM, data = ndata)
+summary(nm_final)
+#After testing out removing each of the least significant variables one-by-one to simplify the model, we felt that a drop of an adjusted R^2 from .9299 to .9251 was worth it. As a result, our final model has only six variables.
+```
+
+While interpreting the coefficients from the non-petrol model, the interpretation can be
+summed up as follows:
+* For every kg increase in weight, there will be an increase of €40.40 on average, all other variables held constant.
+* For year increase in the buyer's age, there will be an increase of €1,277 on average, all other variables held constant.
+* For each additional km on the odometer, there will be a decrease of €0.40 on average, all other variables held constant.
+* The effect of weight on price decreases by €1.263 for every year increase in the buyer's age, all other variables held constant, and vice versa.
+* The effect of weight on price increases by €0.000314 for each additional km on the odometer, all other variables held constant, and vice versa.
+* The effect of age on price increases by €0.0005176 for each additional km on the odometer, all other variables held constant, and vice versa.
+
+```{r echo=FALSE}
+plot_ndata = ndata
+plot_ndata$Residuals = nm_final$residuals
+plot_ndata$Fitted = nm_final$fitted.values
+
+ggplot(plot_ndata, aes(Fitted, Residuals, colour = "Non-Petrol")) + geom_point() +scale_colour_manual(values = c("#999999")) + labs(caption="Figure 4") + theme(plot.caption = element_text(hjust=0.5, size=rel(1.2))) + theme(legend.position = "none")
+ggplot(plot_ndata, aes(Residuals)) + geom_histogram(bins = 100, colour = "black", fill = "#999999")+ labs(caption="Figure 5") + theme(plot.caption = element_text(hjust=0.5, size=rel(1.2)))
+```
+Diagnostic plots (shown in Figures 4 and 5) were created to verify the assumptions necessary for a linear regression model. Based on the lack of a discernible pattern in Figure 4 and the relative fit of the residuals into a normal distribution shown in Figure 5, there are no violations of the linear regression model assumptions.
+
+
+####Petrol Model
+The petrol model was slightly more difficult to find a strong model for, requiring seven independent variables to maintain a high adjusted R^2. The model for petrol vehicles can be obtained by predicting the price using age, HP, and CC, along with some interactions between Age, Weight, KM, and HP.
+```{r include=FALSE}
+pm1 = lm(Price~., data=pdata)
+summary(pm1)
+```
+
+```{r include=FALSE, results="hide"}
+#We then run the stepwise method to determine the optimal regression equation.
+null = lm(Price~1, data=pdata)
+full = lm(Price~., data=pdata)
+pm2 = step(null, scope = list(upper=full), direction = "both")
+summary(pm2)
+```
+
+```{r include=FALSE}
+#We then run the best subsets regression method to see if any regression equations provide a higher adjusted R^2.
+bsrp=regsubsets(Price~.,data=pdata)
+plot(bsrp,scale="adjr2")
+#The best subets regression model is the same as the stepwise model.
+```
+
+
+```{r include=FALSE, results="hide"}
+#We then run the stepwise method with interactions to determine whether there are any preferable regression equations with interactions.
+null = lm(Price ~ 1, data = pdata)
+full = lm(Price ~ . + .^2, data=pdata)
+pm3 = step(null, scope = list(upper = full), direction = 'both')
+summary(pm3)
+```
+
+```{r echo=FALSE}
+pm_final = lm(formula = Price ~ Age + HP + 
+    CC + Age:Weight + Weight:KM + Age:KM +
+    Weight:HP, data = pdata)
+summary(pm_final)
+#After testing out removing each of the least significant variables one-by-one to simplify the model, we felt that a drop of an adjusted R^2 from .8993 to .8932 was worth it given the drop from 20 to seven indepdent variables.
+```
+While interpreting the coefficients from the petrol model, the interpretation can be
+summed up as follows:
+* For year increase in the buyer's age, there will be an increase of €362.40 on average, all other variables held constant.
+* For each unit increase in horsepower, there will be a decrease of €433.60 on average, all other variables held constant.
+* For each unit increase in CC, there will be an increase of €3.68 on average, all other variables held constant.
+* The effect of weight on price decreases by €0.4711 for every year increase in the buyer's age, all other variables held constant, and vice versa.
+* The effect of weight on price decreases by €0.00003877 for each additional km on the odometer, all other variables held constant, and vice versa.
+* The effect of age on price increases by €0.0004159 for each additional km on the odometer, all other variables held constant, and vice versa.
+* The effect of HP on price increases by €0.3917 for every kg increase in weight, all other variables held constant, and vice versa.
+
+```{r echo=FALSE}
+plot_pdata = pdata
+plot_pdata$Residuals = pm_final$residuals
+plot_pdata$Fitted = pm_final$fitted.values
+
+ggplot(plot_pdata, aes(Fitted, Residuals, colour = "Petrol")) + geom_point() +scale_colour_manual(values = c("blue3")) + labs(caption="Figure 6") + theme(plot.caption = element_text(hjust=0.5, size=rel(1.2))) + theme(legend.position = "none")
+ggplot(plot_pdata, aes(Residuals)) + geom_histogram(bins = 100, colour = "black", fill = "blue3")+ labs(caption="Figure 7") + theme(plot.caption = element_text(hjust=0.5, size=rel(1.2)))
+```
+Diagnostic plots (shown in Figures 6 and 7) were created to verify the assumptions necessary for a linear regression model. Based on the lack of a discernible pattern in Figure 6 and the relative fit of the residuals into a normal distribution shown in Figure 7, there are no violations of the linear regression model assumptions.
+
+####Combined Model
+From the insights learned in the petrol and non-petrol models, a new combined model can
+be found. It was interesting to find that despite the distinctions between correlation coefficients in the scatterplot matrix when separating the data on petrol vs. non-petrol, there are no interactions involving fuel type in the combined model.
+
+
+```{r include=FALSE}
+#Try using all the predictor variables from the non-petrol model to predict the petrol data set
+pm_final2 = lm(formula = Price ~ Weight + Age + KM + 
+    Weight:Age + Weight:KM + Age:KM, data = pdata)
+summary(pm_final2)
+```
+
+```{r include=FALSE}
+#Try using all the predictor variables from the petrol model to predict the non-petrol data set
+nm_final2 = lm(formula = Price ~ Age + HP + 
+    CC + Age:Weight + Weight:KM + Age:KM +
+    Weight:HP, data = ndata)
+summary(nm_final2)
+```
+
+
+
+```{r include=FALSE}
+#We will try to create a combined model using all significant variables from each final model.
+combined_model1 = lm(formula = Price ~ Age + HP + 
+    CC + Age:Weight + Weight:KM + Age:KM +
+    Weight:HP + Weight + KM, data = df)
+summary(combined_model1)
+```
+
+```{r echo=FALSE}
+combined_model_final = lm(formula = Price ~ HP + Age +
+    Age:Weight  + Age:KM +
+    Weight:HP + KM, data = df)
+summary(combined_model_final)
+#We felt that the decrease in adjusted R^2 from 0.8959 to 0.8951 was worth the ability to simplify the regression equation from nine to six independent variables.
+```
+While the adjusted R-square is slightly below that of the non-petrol model, it is still higher than that of the petrol model (0.8932). The simplicity of the model and limited number of variables involved helps to improve the efficacy of the model. From this data, the primary drivers of sales price are:
+* horsepower
+* age of the buyers
+* kilometers on the odometer
+* interaction of buyer age with vehicle weight
+* interaction of buyer age with km on odometer
+* interaction of horsepower with vehicle weight
+
+#####Regression Equation:
+$$\hat{Price}=18030 - 288.3 * HP + 169.9 *Age -0.0481 * KM - 0.297 * Age*Weight +0.0005391 * Age*KM +0.2862 * HP*Weight$$
+```{r include=FALSE}
+#We looked into running best subsets regression with interactions with a variable limit of 6 independent variables and found that our regression equation produced the highest adjusted R^2.
+bsr=regsubsets(Price~.+.^2,data=df, nvmax = 6)
+plot(bsr,scale="adjr2")
+coef(bsr, 6)
+```
+
+```{r echo=FALSE}
+plot_df = df
+plot_df$Residuals = combined_model_final$residuals
+plot_df$Fitted = combined_model_final$fitted.values
+
+ggplot(plot_df, aes(Fitted, Residuals, colour = FuelTypePetrol)) + geom_point() +scale_colour_manual(labels = c("Non-Petrol","Petrol"), values = c("#999999","blue3")) + labs(colour = "Fuel Type", caption="Figure 8") + theme(plot.caption = element_text(hjust=0.5, size=rel(1.2)))
+ggplot(plot_df, aes(Residuals, fill = FuelTypePetrol)) + geom_histogram(bins = 100, colour = "#000000")+ labs(fill = "Fuel Type", caption="Figure 9") + scale_fill_manual(labels = c("Non-Petrol","Petrol"), values = c("#999999","blue3")) + theme(plot.caption = element_text(hjust=0.5, size=rel(1.2)))
+```
+Diagnostic plots (shown in Figures 8 and 9) were created to verify the assumptions necessary for a linear regression model. Based on the lack of a discernible pattern in Figure 8 and the relative fit of the residuals into a normal distribution shown in Figure 9, there are no violations of the linear regression model assumptions.
+
+###Questions:
+
+####Question 2
+It is believed that an individual would pay €1,000 more if they are 10 years older. Here we provide a test for statistical significance.
+
+```{r echo=FALSE}
+age_model = lm(Price ~ Age, data = df)
+summary(age_model)
+```
+
+To set this problem up as a hypothesis test, the null hypothesis is that for each year older someone is, the price is €100 greater (1,000/10 = 100). Therefore, the equivalent
+hypothesis is that the age coefficient will be €100. Alternatively, the coefficient is that the age coefficient is not €100.
+
+$$H_0: \beta_1 = 100 $$
+$$H_a: \beta_1 \neq 100 $$
+
+```{r include=FALSE}
+confint(age_model)
+```
+
+A 95% confidence interval for the age coefficient is such that the coefficient is between -€175.7946 and -€166.0725. Since €100 is outside the confidence interval, we
+should reject the null hypothesis based on a 95% level of significance. We can also observe that the coefficient is significantly different than €100. 
+
+####Question 3
+
+It is also believed that expenses are statistically significant across the different regions.  Can you refute this claim using a statistical test? (Answer this by answering all of the questions below)
+
+
+
+```{r include=FALSE}
+#What are the mean values for automatic vs. non-automatic cars?
+mean(df$Price)
+mean(df$Price[df$Automatic==1])
+mean(df$Price[df$Automatic==0])
+```
+
+Produce boxplots to visually show the diffence of charges between regions.
+
+```{r}
+data2=read.csv("insurance.csv")
+names(data2) = c("Age", "Sex", "BMI", "Children", "Smoker", "Region", "Charges")
+
+ggplot(data2, aes(Region, Charges, fill = Region)) + geom_boxplot()
+```
+
